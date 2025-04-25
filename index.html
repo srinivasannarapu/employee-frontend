@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Employee Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            flex-direction: column;
+        }
+
+        h1, h2 {
+            text-align: center;
+        }
+
+        .form-container, .table-container {
+            width: 50%;
+            margin-top: 20px;
+        }
+
+        .form-container input, .form-container button {
+            width: 100%;
+            margin: 10px 0;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .form-container input {
+            width: 48%;
+            display: inline-block;
+            margin-right: 4%;
+        }
+
+        .form-container input:last-child {
+            margin-right: 0;
+        }
+
+        table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            text-align: center;
+        }
+
+        th, td {
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+
+        th {
+            background-color: #f4f4f4;
+        }
+
+        #successMessage, #deleteSuccessMessage {
+            color: green;
+            font-weight: bold;
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .action-buttons {
+            display: flex;
+            justify-content: space-around;
+        }
+
+        .action-buttons button {
+            padding: 5px 10px;
+        }
+    </style>
+    <script>
+        let previousData = {}; // To store the original data before editing
+
+        // Fetch and display employees from the backend
+        function fetchEmployees() {
+            fetch("http://localhost:8080/api/employees")
+                .then(res => res.json())
+                .then(data => {
+                    let table = "<tr><th>ID</th><th>First</th><th>Last</th><th>Designation</th><th>Address</th><th>Actions</th></tr>";
+                    data.forEach(emp => {
+                        table += `<tr id="row_${emp.empid}">
+                            <td>${emp.empid}</td>
+                            <td><input value="${emp.firstname}" id="f_${emp.empid}" disabled></td>
+                            <td><input value="${emp.lastname}" id="l_${emp.empid}" disabled></td>
+                            <td><input value="${emp.designation}" id="d_${emp.empid}" disabled></td>
+                            <td><input value="${emp.address}" id="a_${emp.empid}" disabled></td>
+                            <td class="action-buttons">
+                                <button onclick="editEmployee('${emp.empid}')">Edit</button>
+                                <button onclick="deleteEmployee('${emp.empid}')">Delete</button>
+                                <button onclick="saveEmployee('${emp.empid}')" style="display:none;" id="saveBtn_${emp.empid}">Save</button>
+                                <button onclick="cancelEdit('${emp.empid}')" style="display:none;" id="cancelBtn_${emp.empid}">Cancel</button>
+                            </td>
+                        </tr>`;
+                    });
+                    document.getElementById("empTable").innerHTML = table;
+                });
+        }
+
+        // Add new employee
+        function addEmployee() {
+            const empid = document.getElementById("new_id").value;
+            const firstname = document.getElementById("new_fn").value;
+            const lastname = document.getElementById("new_ln").value;
+            const designation = document.getElementById("new_des").value;
+            const address = document.getElementById("new_add").value;
+
+            // Validate input fields
+            if (!empid || !firstname || !lastname || !designation || !address) {
+                alert("All fields are required!");
+                return;
+            }
+
+            const emp = {
+                empid: empid,
+                firstname: firstname,
+                lastname: lastname,
+                designation: designation,
+                address: address
+            };
+
+            fetch("http://localhost:8080/api/employees", {
+                method: "POST",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(emp)
+            })
+            .then(response => {
+                if (!response.ok) throw new Error("Failed to add");
+                return response.json();
+            })
+            .then(() => {
+                clearFormFields(); // Clear form fields after successful addition
+                showSuccessMessage(); // Display success message
+                fetchEmployees(); // Refresh the employee list
+            })
+            .catch(err => alert("Error adding employee!"));
+        }
+
+        // Start editing an employee
+        function editEmployee(id) {
+            // Store the original data before editing for cancel action
+            previousData[id] = {
+                firstname: document.getElementById("f_" + id).value,
+                lastname: document.getElementById("l_" + id).value,
+                designation: document.getElementById("d_" + id).value,
+                address: document.getElementById("a_" + id).value
+            };
+
+            // Enable the input fields for editing
+            document.getElementById("f_" + id).disabled = false;
+            document.getElementById("l_" + id).disabled = false;
+            document.getElementById("d_" + id).disabled = false;
+            document.getElementById("a_" + id).disabled = false;
+
+            // Show Save and Cancel buttons, hide Edit and Delete buttons
+            document.getElementById("saveBtn_" + id).style.display = "inline";
+            document.getElementById("cancelBtn_" + id).style.display = "inline";
+            document.querySelector(`#row_${id} button:nth-child(1)`).style.display = "none";
+            document.querySelector(`#row_${id} button:nth-child(2)`).style.display = "none";
+        }
+
+        // Save the updated employee data
+        function saveEmployee(id) {
+            const updated = {
+                firstname: document.getElementById("f_" + id).value,
+                lastname: document.getElementById("l_" + id).value,
+                designation: document.getElementById("d_" + id).value,
+                address: document.getElementById("a_" + id).value
+            };
+
+            // Validate updated data before saving
+            if (!updated.firstname || !updated.lastname || !updated.designation || !updated.address) {
+                alert("All fields must be filled to save.");
+                return;
+            }
+
+            fetch("http://localhost:8080/api/employees/" + id, {
+                method: "PUT",
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updated)
+            })
+            .then(() => {
+                fetchEmployees(); // Refresh the employee list
+            });
+        }
+
+        // Cancel editing and revert changes
+        function cancelEdit(id) {
+            // Revert input fields to their previous values
+            document.getElementById("f_" + id).value = previousData[id].firstname;
+            document.getElementById("l_" + id).value = previousData[id].lastname;
+            document.getElementById("d_" + id).value = previousData[id].designation;
+            document.getElementById("a_" + id).value = previousData[id].address;
+
+            // Disable the input fields to cancel edit
+            document.getElementById("f_" + id).disabled = true;
+            document.getElementById("l_" + id).disabled = true;
+            document.getElementById("d_" + id).disabled = true;
+            document.getElementById("a_" + id).disabled = true;
+
+            // Hide Save and Cancel buttons, show Edit and Delete buttons
+            document.getElementById("saveBtn_" + id).style.display = "none";
+            document.getElementById("cancelBtn_" + id).style.display = "none";
+            document.querySelector(`#row_${id} button:nth-child(1)`).style.display = "inline";
+            document.querySelector(`#row_${id} button:nth-child(2)`).style.display = "inline";
+        }
+
+        // Delete an employee and show success message
+        function deleteEmployee(id) {
+            fetch("http://localhost:8080/api/employees/" + id, {
+                method: "DELETE"
+            })
+            .then(() => {
+                showDeleteSuccessMessage(); // Show delete success message
+                fetchEmployees(); // Refresh the employee list
+            });
+        }
+
+        // Clear form fields after adding a new employee
+        function clearFormFields() {
+            document.getElementById("new_id").value = '';
+            document.getElementById("new_fn").value = '';
+            document.getElementById("new_ln").value = '';
+            document.getElementById("new_des").value = '';
+            document.getElementById("new_add").value = '';
+        }
+
+        // Show success message after adding a new employee
+        function showSuccessMessage() {
+            const successMessage = document.getElementById("successMessage");
+            successMessage.style.display = "block";
+            setTimeout(() => {
+                successMessage.style.display = "none";
+            }, 3000); // Hide after 3 seconds
+        }
+
+        // Show success message after deleting an employee
+        function showDeleteSuccessMessage() {
+            const deleteSuccessMessage = document.getElementById("deleteSuccessMessage");
+            deleteSuccessMessage.style.display = "block";
+            setTimeout(() => {
+                deleteSuccessMessage.style.display = "none";
+            }, 3000); // Hide after 3 seconds
+        }
+
+        window.onload = function() {
+            fetchEmployees();
+        };
+    </script>
+</head>
+<body>
+    <h1>Employee Management</h1>
+
+    <div id="successMessage">Employee added successfully!</div>
+    <div id="deleteSuccessMessage">Employee deleted successfully!</div>
+
+    <h2>Add Employee</h2>
+    <div class="form-container">
+        <input id="new_id" placeholder="ID">
+        <input id="new_fn" placeholder="First Name">
+        <input id="new_ln" placeholder="Last Name">
+        <input id="new_des" placeholder="Designation">
+        <input id="new_add" placeholder="Address">
+        <button onclick="addEmployee()">Add</button>
+    </div>
+
+    <h2>Employee List</h2>
+    <div class="table-container">
+        <table border="1" id="empTable"></table>
+    </div>
+</body>
+</html>
